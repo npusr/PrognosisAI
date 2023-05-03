@@ -139,4 +139,3 @@ plt.legend(fontsize=12)
 
 # Show the plots
 plt.show()
-

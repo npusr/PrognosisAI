@@ -1,4 +1,5 @@
 import requests
+import streamlit as st
 import csv
 import pandas as pd
 import numpy as np
@@ -6,27 +7,80 @@ from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import MinMaxScaler
 import matplotlib.pyplot as plt
 import seaborn as sns
-
 import datetime
 
-csv_filename = 'bitcoin_prices.csv'  # define the path and filename of the CSV file to write to
+# Page layout
+st.set_page_config(layout="wide")
+
+# Title
+st.title('Bitcoin Price Prediction')
+
+# Introduction and overview
+st.markdown("""
+This app retrieves the list of the **Bitcoin** prices for the last 3 years from the [Coindesk](https://www.coindesk.com/price/bitcoin) website and predicts the price for the next 20 days using a **Linear Regression** model.
+""")
+st.markdown("""
+* **Python libraries:** pandas, streamlit, numpy, sklearn, matplotlib, seaborn
+* **Data source:** [Coindesk](https://www.coindesk.com/price/bitcoin)
+""")
+st.markdown("---")
+
+# Sidebar - Collects user input features into dataframe
+with st.sidebar.header('1. Collect user input features'):
+    selected_year = st.sidebar.selectbox('Year', list(reversed(range(2018, 2021))))
+
+# Get Bitcoin prices
+url = 'https://api.coindesk.com/v1/bpi/historical/close.json'
+params = {'start': f'{selected_year}-01-01', 'end': f'{selected_year}-12-31'}
+response = requests.get(url, params=params)
+data = response.json()['bpi']
+df = pd.DataFrame.from_dict(data, orient='index', columns=['price'])
+
+# Convert prices to the desired format
+df.index = pd.to_datetime(df.index)
+df.index.name = 'date'
+df['price'] = df['price'].astype('float')
+
+# Keep only the next 20 days
+df_future = df.tail(20)
+
+# Display Bitcoin prices chart
+st.subheader(f'2. Bitcoin Prices chart for the year {selected_year}')
+st.line_chart(df)
+
+# Display prices for the next 20 days
+st.subheader('3. Bitcoin Prices for the next 20 days')
+st.table(df_future)
+
+csv_filename = 'bitcoin_prices.csv'  # name of the CSV file to write to
 
 # Define start and end dates for API request and CSV file
 api_start_date = '2018-01-27'
 api_end_date = datetime.date.today().strftime('%Y-%m-%d')
 
 # Make API request for bitcoin prices
+# Get the data from the API
 try:
+    # construct the url
     url = f'https://api.coindesk.com/v1/bpi/historical/close.json?start={api_start_date}&end={api_end_date}'
+
+    # send the request
     response = requests.get(url)
     response.raise_for_status()   # raise an exception if the response is not successful
+
+    # convert the response to json
     data = response.json()
+
+# catch any errors that may occur
 except requests.exceptions.RequestException as e:
     print('Error while making API request:', e)
     exit()
 
 # Extract date and price data from the response and store them in a list
+# Create a list of lists with date and price data
 price_data = [['Date', 'Price']]
+
+# Extract date and price data from response and append to price_data
 try:
     for date, price in data['bpi'].items():
         price_data.append([date, price])
@@ -49,8 +103,11 @@ while 'next_page' in data:
 
 # Write the data to a CSV file
 try:
+    # Open a file to write the CSV data to
     with open(csv_filename, mode='w', newline='') as csv_file:
+        # Create a CSV writer object
         writer = csv.writer(csv_file)
+        # Write the data to the CSV file
         writer.writerows(price_data)
 except IOError as e:
     print('Error while writing data to CSV file:', e)
@@ -65,12 +122,7 @@ except (IOError, pd.errors.EmptyDataError) as e:
     exit()
 
 # Convert 'Price' column to numeric values
-try:
-    bitcoin_df['Price'] = pd.to_numeric(bitcoin_df['Price'], errors='coerce')
-except ValueError as e:
-    print('Error while converting data to numeric values:', e)
-    exit()
-
+bitcoin_df['Price'] = pd.to_numeric(bitcoin_df['Price'], errors='coerce')
 # Convert 'Date' column to datetime objects
 try:
     bitcoin_df['Date'] = pd.to_datetime(bitcoin_df['Date'])
@@ -139,3 +191,5 @@ plt.legend(fontsize=12)
 
 # Show the plots
 plt.show()
+
+
